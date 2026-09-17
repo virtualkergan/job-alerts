@@ -1,0 +1,63 @@
+# ============================================================
+# Companies to monitor for new job postings.
+#
+# To add a company: copy a block below, change the values, save.
+# No code changes needed for platforms already supported
+# (workday, phenom, html_scrape).
+#
+# platform options:
+#   workday      -> company uses Workday for its career site
+#   attract_api  -> company's career site has the iCIMS-backed /api/jobs
+#                    JSON endpoint (confirmed: First Citizens Bank, Aon)
+#   html_scrape  -> generic: we read the search-results page's HTML
+# ============================================================
+
+- name: "Willis Towers Watson"
+  platform: "html_scrape"
+  listing_url: "https://careers.wtwco.com/jobs/search"
+  # Optional: only keep postings whose title contains one of these
+  # (case-insensitive). Leave empty / remove to get everything.
+  keywords: ["actuari", "analyst", "consultant"]
+
+- name: "Aon"
+  platform: "attract_api"
+  base_url: "https://jobs.aon.com"
+  # Confirmed working against a live test run.
+  keywords: ["actuari", "analyst", "consultant"]
+
+#
+# Paused for now (needs more investigation - its career site appears to
+# require JavaScript even for what should be server-rendered results,
+# which the html_scrape connector can't execute):
+#
+# - name: "Marsh McLennan Agency"
+#   platform: "workday"
+#   tenant: "mmc"
+#   wd_number: "wd1"
+#   site: "careers"
+#   keywords: ["marsh mclennan agency", "mma"]
+
+- name: "MetLife"
+  platform: "html_scrape"
+  listing_url: "https://www.metlifecareers.com/en_US/ml/SearchJobs/?listFilterMode=1&jobRecordsPerPage=6"
+  # Confirmed working: the site hard-caps results at 6 per page (it ignores
+  # requests for more), and pages through with a jobOffset param rather
+  # than a normal ?page=N - offset must step by the real page size (6),
+  # not a guessed one, or pages get skipped or duplicated.
+  pagination: "offset_param"
+  offset_param_name: "jobOffset"
+  per_page: 6
+  # Confirmed working against a live test run.
+  link_pattern: "JobDetail"
+  keywords: ["actuari", "analyst", "consultant"]
+
+- name: "Fidelity"
+  platform: "html_scrape"
+  listing_url: "https://jobs.fidelity.com/en/jobs"
+  link_pattern: "/en/jobs/\\d+/"
+  keywords: ["actuari", "analyst", "consultant"]
+
+- name: "First Citizens Bank"
+  platform: "attract_api"
+  base_url: "https://jobs.firstcitizens.com"
+  keywords: ["actuari", "analyst", "consultant"]
