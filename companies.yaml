@@ -10,6 +10,9 @@
 #   attract_api  -> company's career site has the iCIMS-backed /api/jobs
 #                    JSON endpoint (confirmed: First Citizens Bank, Aon)
 #   html_scrape  -> generic: we read the search-results page's HTML
+#   marsh_phenom -> Marsh McLennan's specific Phenom /widgets endpoint
+#                    (found via live browser inspection; fairly specific
+#                    to this one site's exact payload shape)
 # ============================================================
 
 - name: "Willis Towers Watson"
@@ -25,17 +28,16 @@
   # Confirmed working against a live test run.
   keywords: ["actuari", "analyst", "consultant"]
 
-#
-# Paused for now (needs more investigation - its career site appears to
-# require JavaScript even for what should be server-rendered results,
-# which the html_scrape connector can't execute):
-#
-# - name: "Marsh McLennan Agency"
-#   platform: "workday"
-#   tenant: "mmc"
-#   wd_number: "wd1"
-#   site: "careers"
-#   keywords: ["marsh mclennan agency", "mma"]
+- name: "Marsh McLennan Agency"
+  platform: "marsh_phenom"
+  base_url: "https://careers.marsh.com"
+  rk: "l-mma-search"
+  page_name: "MMA Search"
+  page_id: "page55-prod-ds"
+  business_filter: ["Marsh McLennan Agency"]
+  # Confirmed working against a live test run (423 postings, exact match
+  # to the site's own displayed count) - found by driving a real browser
+  # and reading its network traffic directly, not by guessing.
 
 - name: "MetLife"
   platform: "html_scrape"

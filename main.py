@@ -22,7 +22,7 @@ from pathlib import Path
 
 import yaml
 
-from connectors import workday, html_scrape, attract_api
+from connectors import workday, html_scrape, attract_api, marsh_phenom
 
 ROOT = Path(__file__).parent
 STATE_FILE = ROOT / "state.json"
@@ -32,6 +32,7 @@ CONNECTORS = {
     "workday": workday.fetch_jobs,
     "html_scrape": html_scrape.fetch_jobs,
     "attract_api": attract_api.fetch_jobs,
+    "marsh_phenom": marsh_phenom.fetch_jobs,
 }
 
 
