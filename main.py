@@ -12,6 +12,7 @@ Run manually with:  python main.py
 Run without sending email (just print what would happen): python main.py --dry-run
 """
 import argparse
+import html
 import json
 import os
 import smtplib
@@ -73,6 +74,12 @@ def fetch_new_jobs_for_company(company: dict, seen_ids: set) -> tuple[list[dict]
     except Exception as e:  # noqa: BLE001 - one company's failure shouldn't kill the run
         return [], seen_ids, f"fetch failed: {e}"
 
+    if not all_jobs and seen_ids:
+        # An empty list from a company we've seen before almost always means a
+        # broken/blocked scrape, not zero openings; keep old state to avoid
+        # re-alerting every posting once the connector recovers.
+        return [], seen_ids, "connector returned no postings - keeping previous state"
+
     relevant = [j for j in all_jobs if matches_keywords(j["title"], company.get("keywords"))]
     current_ids = {j["id"] for j in relevant}
     new_jobs = [j for j in relevant if j["id"] not in seen_ids]
@@ -85,10 +92,10 @@ def build_email_html(results: dict[str, list[dict]]) -> str:
     for company_name, jobs in results.items():
         if not jobs:
             continue
-        parts.append(f"<h3>{company_name}</h3><ul>")
+        parts.append(f"<h3>{html.escape(company_name)}</h3><ul>")
         for j in jobs:
-            loc = f" — {j['location']}" if j.get("location") else ""
-            parts.append(f'<li><a href="{j["url"]}">{j["title"]}</a>{loc}</li>')
+            loc = f" — {html.escape(j['location'])}" if j.get("location") else ""
+            parts.append(f'<li><a href="{html.escape(j["url"])}">{html.escape(j["title"])}</a>{loc}</li>')
         parts.append("</ul>")
     return "\n".join(parts)
 
@@ -144,9 +151,6 @@ def main():
         tag = " (seeding baseline)" if is_first_run else ""
         print(f"[{name}] {len(current_ids)} matching postings, {len(new_jobs)} new{tag}")
 
-    if not args.dry_run:
-        save_state(state)
-
     total_new = sum(len(v) for v in results.values())
     if total_new == 0:
         print("No new postings today.")
@@ -159,6 +163,11 @@ def main():
         else:
             send_email(html_body)
             print(f"Sent email with {total_new} new posting(s).")
+
+    # Saved only after the email succeeds: if sending raises, state stays
+    # unchanged so the next run re-reports these postings instead of losing them.
+    if not args.dry_run:
+        save_state(state)
 
     if any_errors:
         sys.exit(1)  # non-zero exit surfaces the failure in GitHub Actions' UI

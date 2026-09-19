@@ -31,10 +31,12 @@ jobs:
         run: python main.py
 
       - name: Commit updated state
-        if: always()  # save state even if a connector failed, so postings aren't re-alerted
+        if: success() || failure()  # run after a failed check too, but not when cancelled
         run: |
           git config user.name "job-alert-bot"
           git config user.email "actions@github.com"
           git add state.json
-          git diff --quiet --cached || git commit -m "Update job alert state"
+          git diff --quiet --cached && exit 0
+          git commit -m "Update job alert state"
+          git pull --rebase
           git push

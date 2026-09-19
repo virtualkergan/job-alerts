@@ -28,7 +28,9 @@ There is no unit-test suite or linter; `test_connectors.py` hits the real sites.
 ## Behaviors that aren't obvious
 
 - **First run per company seeds a baseline**: if `name` isn't in `state.json`, its postings are recorded but not reported as new.
-- **Connector errors are isolated**: a failing company is logged to stderr and its state is left untouched. The run still exits non-zero at the end (even with no new postings, after any email is sent), and the workflow's commit step uses `if: always()`, so state is saved and a broken connector shows up as a failed run.
+- **Connector errors are isolated**: a failing company is logged to stderr and its state is left untouched. The run still exits non-zero at the end (even with no new postings, after any email is sent), and the workflow's commit step runs on success or failure (not cancellation), so state is saved and a broken connector shows up as a failed run.
+- **Empty results are treated as errors**: if a previously-seen company returns zero postings, `main.py` reports a fetch error and keeps its old state rather than wiping it.
+- **State is saved only after the email sends**, so an SMTP failure retries the same postings next run instead of losing them.
 - **State is the full current set, not cumulative**: `state[name] = current_ids` replaces the old list, so a posting that disappears and reappears is reported as new again. A partial/truncated fetch (e.g. scraper stopping early on a blocked page) silently drops ids and can cause re-alerts later.
 - `html_scrape` uses the full listing-page URL as the job `id`, and its default link regex requires ≥3 hyphenated words in a `/job(s)/` path to avoid nav links; sites with other URL shapes need `link_pattern`.
 - `marsh_phenom`: `from` must be in both the query string and the JSON body or the server always returns page 1.
