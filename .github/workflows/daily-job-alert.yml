@@ -12,9 +12,9 @@ jobs:
   check-jobs:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
 
@@ -31,6 +31,7 @@ jobs:
         run: python main.py
 
       - name: Commit updated state
+        if: always()  # save state even if a connector failed, so postings aren't re-alerted
         run: |
           git config user.name "job-alert-bot"
           git config user.email "actions@github.com"

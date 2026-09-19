@@ -3,7 +3,7 @@
 #
 # To add a company: copy a block below, change the values, save.
 # No code changes needed for platforms already supported
-# (workday, phenom, html_scrape).
+# (workday, attract_api, marsh_phenom, html_scrape).
 #
 # platform options:
 #   workday      -> company uses Workday for its career site

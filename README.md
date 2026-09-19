@@ -6,7 +6,7 @@ emails you anything new — with a direct link to apply.
 ## How it works
 
 - `companies.yaml` — the list of companies to watch. Add/remove companies here.
-- `connectors/` — one file per career-site platform (Workday, Phenom, plain HTML).
+- `connectors/` — one file per career-site platform (Workday, iCIMS-backed API, Marsh's Phenom site, plain HTML).
   A company just points at the right one; no code changes needed for
   companies on an already-supported platform.
 - `state.json` — remembers what postings we've already seen, so tomorrow's
@@ -45,7 +45,7 @@ Add these:
 ### 4. Turn on Actions and test it
 - Repo → Actions tab → enable workflows if prompted.
 - Click "Daily Job Alert" → "Run workflow" to trigger it manually right away,
-  rather than waiting for the 7am schedule.
+  rather than waiting for the 7:47am EDT schedule.
 - Check the run's logs to see how many postings each company found.
 
 The **first run seeds the baseline** — it won't email you every existing
@@ -55,13 +55,13 @@ intentional (see `main.py`).
 ## Adding a company later
 
 1. Add a block to `companies.yaml` with a `platform` that's already supported
-   (`workday`, `phenom`, or `html_scrape`) and the config it needs (see the
+   (`workday`, `attract_api`, `marsh_phenom`, or `html_scrape`) and the config it needs (see the
    examples already in the file).
 2. Run `python test_connectors.py "Company Name"` locally to confirm it
    finds postings before trusting it to the daily run.
 3. Commit and push. Next scheduled run picks it up automatically.
 
-If a company's platform isn't one of the three supported ones, it needs a
+If a company's platform isn't one of the supported ones, it needs a
 small new connector file — a reasonable ask for me to help write once you
 tell me the company and I can see its career site.
 
@@ -70,7 +70,7 @@ tell me the company and I can see its career site.
 ```bash
 pip install -r requirements.txt
 export SMTP_HOST=smtp.gmail.com SMTP_PORT=587 SMTP_USER=... SMTP_PASS=... ALERT_TO=...
-python main.py --dry-run   # prints what it would email, sends nothing
+python main.py --dry-run   # prints what it would email, sends nothing, leaves state.json untouched
 python main.py             # actually sends the email
 python test_connectors.py  # sanity-checks every connector, no email involved
 ```

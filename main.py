@@ -144,21 +144,21 @@ def main():
         tag = " (seeding baseline)" if is_first_run else ""
         print(f"[{name}] {len(current_ids)} matching postings, {len(new_jobs)} new{tag}")
 
-    save_state(state)
+    if not args.dry_run:
+        save_state(state)
 
     total_new = sum(len(v) for v in results.values())
     if total_new == 0:
         print("No new postings today.")
-        return
-
-    html_body = build_email_html(results)
-
-    if args.dry_run:
-        print("\n--- DRY RUN: would send this email ---\n")
-        print(html_body)
     else:
-        send_email(html_body)
-        print(f"Sent email with {total_new} new posting(s).")
+        html_body = build_email_html(results)
+
+        if args.dry_run:
+            print("\n--- DRY RUN: would send this email ---\n")
+            print(html_body)
+        else:
+            send_email(html_body)
+            print(f"Sent email with {total_new} new posting(s).")
 
     if any_errors:
         sys.exit(1)  # non-zero exit surfaces the failure in GitHub Actions' UI
