@@ -10,11 +10,13 @@ emails you anything new — with a direct link to apply.
   A company just points at the right one; no code changes needed for
   companies on an already-supported platform.
 - `state.json` — remembers what postings we've already seen, so tomorrow's
-  email only shows what's genuinely new. Gets committed back to the repo
-  automatically after each run.
+  email only shows what's genuinely new. The Docker stack updates it in place
+  in this folder; a manual GitHub Actions run commits it back to the repo.
 - `main.py` — ties it together: fetch → diff against state → email → save state.
-- `.github/workflows/daily-job-alert.yml` — runs `main.py` every morning
-  in GitHub Actions, for free.
+- `compose.yaml` + `Dockerfile` — runs `main.py` every morning in a Docker
+  container with its own built-in cron (see "Running with Docker" below).
+- `.github/workflows/daily-job-alert.yml` — runs `main.py` in GitHub Actions
+  when triggered manually (its daily schedule is off, since Docker handles that).
 
 ## One-time setup (about 10 minutes)
 
@@ -30,6 +32,10 @@ Easiest option: a Gmail account + an **App Password** (not your normal password)
 (Any SMTP provider works, not just Gmail — Outlook, a work email, Resend, etc.
 Just change `SMTP_HOST` accordingly.)
 
+For the Docker setup (the daily scheduler), these same values go in `.env`
+instead; see "Running with Docker" below. Steps 3–4 are only needed if you
+also want to be able to run it manually from GitHub Actions.
+
 ### 3. Add secrets to the GitHub repo
 Repo → Settings → Secrets and variables → Actions → New repository secret.
 Add these:
@@ -44,8 +50,8 @@ Add these:
 
 ### 4. Turn on Actions and test it
 - Repo → Actions tab → enable workflows if prompted.
-- Click "Daily Job Alert" → "Run workflow" to trigger it manually right away,
-  rather than waiting for the 7:47am EDT schedule.
+- Click "Daily Job Alert" → "Run workflow" to trigger it manually (it has no
+  schedule of its own).
 - Check the run's logs to see how many postings each company found.
 
 The **first run seeds the baseline** — it won't email you every existing
@@ -59,11 +65,41 @@ intentional (see `main.py`).
    examples already in the file).
 2. Run `python test_connectors.py "Company Name"` locally to confirm it
    finds postings before trusting it to the daily run.
-3. Commit and push. Next scheduled run picks it up automatically.
+3. Save it. The Docker stack's next scheduled run picks it up automatically
+   (`companies.yaml` is mounted, so no rebuild needed). Commit and push if
+   you want it in GitHub too.
 
 If a company's platform isn't one of the supported ones, it needs a
 small new connector file — a reasonable ask for me to help write once you
 tell me the company and I can see its career site.
+
+## Running with Docker
+
+The daily schedule runs in a Docker Compose stack: the container runs
+[supercronic](https://github.com/aptible/supercronic) as its cron, so the host
+needs nothing but Docker.
+
+```bash
+cp .env.example .env              # then fill in your SMTP settings
+docker compose up -d --build      # start it; runs daily at 7:00am America/New_York
+docker compose logs -f            # watch the scheduler and each run's output
+docker compose exec job-alerts python main.py --dry-run   # run once now, no email/state
+docker compose exec job-alerts python main.py             # run once now, for real
+```
+
+- `state.json` and `companies.yaml` are bind-mounted from this folder:
+  edits to `companies.yaml` apply on the next run (no rebuild), and
+  `state.json` is updated in place, so it'll show as modified in git.
+  Keep `state.json` present — if it's missing, Docker creates a directory there.
+- Change the time or timezone with `CRON_SCHEDULE` / `TZ` in `.env`, then
+  `docker compose up -d`. The schedule follows `TZ`, including DST.
+- To test the scheduler without emailing or touching state, set
+  `CRON_SCHEDULE=* * * * *` and `JOB_ARGS=--dry-run` in `.env`, `docker compose up -d`,
+  and watch the logs; remove both lines and `up -d` again when done.
+- If the machine is off or asleep at run time, that day's run is skipped
+  (cron doesn't catch up); the next run still reports everything new since.
+- Avoid also running the GitHub workflow manually: it commits its own
+  `state.json`, which will conflict with the local one.
 
 ## Running locally (optional)
 

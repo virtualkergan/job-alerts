@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A daily job-alert bot: `main.py` polls company career sites, diffs against `state.json`, and emails new postings via SMTP. It runs in GitHub Actions (`.github/workflows/daily-job-alert.yml`), which commits the updated `state.json` back to `main` after each run — so `state.json` changes (and "Update job alert state" commits) are normal, expected churn.
+A daily job-alert bot: `main.py` polls company career sites, diffs against `state.json`, and emails new postings via SMTP. The scheduled runner is the Docker Compose stack (`compose.yaml` + `Dockerfile`): supercronic runs inside the container, and `state.json` / `companies.yaml` are bind-mounted from the repo dir, so a locally modified `state.json` is normal, expected churn. The GitHub Actions workflow (`.github/workflows/daily-job-alert.yml`) is manual-only (`workflow_dispatch`); when run, it commits `state.json` back to `main` ("Update job alert state" commits).
 
 ## Commands
 
@@ -14,6 +14,9 @@ python main.py --dry-run          # fetch + diff + print the email; no send, no 
 python main.py                    # sends email; needs SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, ALERT_TO env vars
 python test_connectors.py         # live-network smoke test of every connector (prints count + first 3)
 python test_connectors.py "Aon"   # one company, by exact `name` from companies.yaml
+
+docker compose up -d --build      # scheduled runner; secrets in .env (copy .env.example)
+docker compose exec job-alerts python main.py --dry-run
 ```
 
 There is no unit-test suite or linter; `test_connectors.py` hits the real sites.
@@ -34,4 +37,5 @@ There is no unit-test suite or linter; `test_connectors.py` hits the real sites.
 - **State is the full current set, not cumulative**: `state[name] = current_ids` replaces the old list, so a posting that disappears and reappears is reported as new again. A partial/truncated fetch (e.g. scraper stopping early on a blocked page) silently drops ids and can cause re-alerts later.
 - `html_scrape` uses the full listing-page URL as the job `id`, and its default link regex requires ≥3 hyphenated words in a `/job(s)/` path to avoid nav links; sites with other URL shapes need `link_pattern`.
 - `marsh_phenom`: `from` must be in both the query string and the JSON body or the server always returns page 1.
-- The cron is `47 11 * * *` UTC (7:47am EDT) and doesn't adjust for DST.
+- The Docker schedule is `CRON_SCHEDULE` (default `0 7 * * *`) interpreted in `TZ` (default `America/New_York`), so it tracks DST. The crontab is generated at container start by the `command:` in `compose.yaml` — there's intentionally no committed crontab/shell script, since `core.autocrlf=true` checkouts would add CRLFs.
+- The container runs `main.py` from the image, so code/connector changes need `docker compose up -d --build`; `companies.yaml` changes don't.

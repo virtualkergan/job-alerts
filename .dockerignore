@@ -1,0 +1,9 @@
+.git
+.github
+.env
+__pycache__
+*.pyc
+.venv
+venv
+state.json
+companies.yaml

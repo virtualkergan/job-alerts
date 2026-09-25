@@ -1,8 +1,8 @@
 name: Daily Job Alert
 
 on:
-  schedule:
-    - cron: "47 11 * * *"  # ~7:47am EDT - off the top-of-hour to avoid GitHub's known scheduling delays there (adjust for your timezone / DST)
+  # Scheduled runs happen in the Docker stack (compose.yaml). To schedule here
+  # instead, re-add:  schedule: [{cron: "47 11 * * *"}]  and stop the stack.
   workflow_dispatch: {}     # lets you trigger it manually from the Actions tab
 
 permissions:
