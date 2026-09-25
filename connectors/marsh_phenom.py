@@ -8,22 +8,25 @@ this can't be scraped like WTW/Fidelity; it needs the real API call.
 Found by driving an actual browser (Chrome + network inspection) rather
 than guessing: the page's own JS calls this endpoint to populate results.
 
-    POST {base_url}/widgets?from={offset}&s=1&rk={rk}
+    POST {base_url}/widgets
     body: a fairly verbose JSON payload (see BASE_PAYLOAD below) where
-    the two fields that matter for us are:
-      - "from": pagination offset - MUST also appear in the URL's query
-        string, not just the body, or the server silently ignores it and
-        always returns page 1 (this cost real time to figure out).
+    the fields that matter for us are:
+      - "ddoKey": MUST be "refineSearch". The page's first load uses
+        "eagerLoadRefineSearch", but that variant ignores "from" and
+        returns the same first page for every offset, so paging with it
+        collects the same ~50 jobs over and over.
+      - "from": pagination offset.
       - "selected_fields": {"business": [...]} - the actual business-unit
         filter, i.e. how we get *only* Marsh McLennan Agency postings
         directly from the server, rather than pattern-matching titles
         after the fact.
 
-Response shape: {"eagerLoadRefineSearch": {"totalHits": N, "data": {"jobs": [...]}}}
+Response shape: {"refineSearch": {"totalHits": N, "data": {"jobs": [...]}}}
 """
 import requests
 
 USER_AGENT = "Mozilla/5.0 (compatible; job-alert-bot/1.0)"
+DDO_KEY = "refineSearch"
 
 BASE_PAYLOAD = {
     "lang": "en_global",
@@ -59,13 +62,14 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 30) -> list[dict]:
 
     api_url = f"{base_url}/widgets"
     jobs = []
+    seen_ids = set()
 
     for page in range(max_pages):
         offset = page * size
         payload = dict(
             BASE_PAYLOAD,
             pageName=page_name,
-            ddoKey="eagerLoadRefineSearch",
+            ddoKey=DDO_KEY,
             subsearch="",
             size=size,
             rk=rk,
@@ -76,30 +80,35 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 30) -> list[dict]:
 
         resp = requests.post(
             api_url,
-            params={"from": offset, "s": "1", "rk": rk},  # "from" MUST be in the URL too
             json=payload,
             headers={"User-Agent": USER_AGENT, "Content-Type": "application/json"},
             timeout=20,
         )
         resp.raise_for_status()
-        data = resp.json().get("eagerLoadRefineSearch", {})
+        data = resp.json().get(DDO_KEY, {})
         postings = data.get("data", {}).get("jobs", [])
         if not postings:
             break
 
         for p in postings:
+            job_id = p.get("reqId") or p.get("jobId", "")
+            # Result order can shift slightly between page requests, so the
+            # same posting occasionally shows up on two adjacent pages.
+            if job_id in seen_ids:
+                continue
+            seen_ids.add(job_id)
+            locations = p.get("multi_location") or [p.get("cityStateCountry", "")]
             jobs.append(
                 {
-                    "id": p.get("reqId") or p.get("jobId", ""),
+                    "id": job_id,
                     "title": p.get("title", "Untitled role"),
                     "url": p.get("applyUrl", ""),
-                    "location": p.get("location", ""),
+                    "locations": [loc for loc in locations if loc],
                     "posted": p.get("postedDate", ""),
                 }
             )
 
-        total = data.get("totalHits", 0)
-        if len(jobs) >= total:
+        if offset + size >= data.get("totalHits", 0):
             break
 
     return jobs

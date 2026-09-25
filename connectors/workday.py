@@ -51,7 +51,7 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 50) -> list[dict]:
                     "id": external_path,  # stable per-job identifier
                     "title": p.get("title", "Untitled role"),
                     "url": f"{base}/{site}{external_path}",
-                    "location": p.get("locationsText", ""),
+                    "locations": [p["locationsText"]] if p.get("locationsText") else [],
                     "posted": p.get("postedOn", ""),
                 }
             )

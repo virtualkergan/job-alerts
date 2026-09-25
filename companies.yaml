@@ -13,20 +13,28 @@
 #   marsh_phenom -> Marsh McLennan's specific Phenom /widgets endpoint
 #                    (found via live browser inspection; fairly specific
 #                    to this one site's exact payload shape)
+#
+# Every company reports all US postings. To narrow one down, add e.g.
+#   keywords: ["actuari", "analyst"]
+# (a case-insensitive match on the job title).
+#
+# html_scrape can also read each posting's location/date from the listing
+# page via CSS selectors: card_selector matches the element wrapping one
+# job, and location_selector / posted_selector are looked up inside it.
+# Without a location, a posting can't be identified as non-US, so it's kept.
 # ============================================================
 
 - name: "Willis Towers Watson"
   platform: "html_scrape"
   listing_url: "https://careers.wtwco.com/jobs/search"
-  # Optional: only keep postings whose title contains one of these
-  # (case-insensitive). Leave empty / remove to get everything.
-  keywords: ["actuari", "analyst", "consultant"]
+  card_selector: "tr"
+  location_selector: "td.job-search-results-location li"
+  # The listing page doesn't show a posted date.
 
 - name: "Aon"
   platform: "attract_api"
   base_url: "https://jobs.aon.com"
   # Confirmed working against a live test run.
-  keywords: ["actuari", "analyst", "consultant"]
 
 - name: "Marsh McLennan Agency"
   platform: "marsh_phenom"
@@ -35,9 +43,9 @@
   page_name: "MMA Search"
   page_id: "page55-prod-ds"
   business_filter: ["Marsh McLennan Agency"]
-  # Confirmed working against a live test run (423 postings, exact match
-  # to the site's own displayed count) - found by driving a real browser
-  # and reading its network traffic directly, not by guessing.
+  # Confirmed working against a live test run (~400 unique postings,
+  # matching the site's own displayed count) - found by driving a real
+  # browser and reading its network traffic directly, not by guessing.
 
 - name: "MetLife"
   platform: "html_scrape"
@@ -51,15 +59,18 @@
   per_page: 6
   # Confirmed working against a live test run.
   link_pattern: "JobDetail"
-  keywords: ["actuari", "analyst", "consultant"]
+  card_selector: "article.article--result"
+  location_selector: ".list-item-location"
+  posted_selector: ".list-item-posted"
 
 - name: "Fidelity"
   platform: "html_scrape"
   listing_url: "https://jobs.fidelity.com/en/jobs"
   link_pattern: "/en/jobs/\\d+/"
-  keywords: ["actuari", "analyst", "consultant"]
+  card_selector: ".card-job"
+  location_selector: ".job-meta li:nth-of-type(2)"
+  posted_selector: ".job-meta li:first-child span:nth-of-type(2)"
 
 - name: "First Citizens Bank"
   platform: "attract_api"
   base_url: "https://jobs.firstcitizens.com"
-  keywords: ["actuari", "analyst", "consultant"]

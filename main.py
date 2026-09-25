@@ -17,6 +17,7 @@ import json
 import os
 import smtplib
 import sys
+from datetime import date
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -24,6 +25,7 @@ from pathlib import Path
 import yaml
 
 from connectors import workday, html_scrape, attract_api, marsh_phenom
+from jobformat import format_date, format_locations, format_posted, is_us_job, parse_posted
 
 ROOT = Path(__file__).parent
 STATE_FILE = ROOT / "state.json"
@@ -80,23 +82,56 @@ def fetch_new_jobs_for_company(company: dict, seen_ids: set) -> tuple[list[dict]
         # re-alerting every posting once the connector recovers.
         return [], seen_ids, "connector returned no postings - keeping previous state"
 
-    relevant = [j for j in all_jobs if matches_keywords(j["title"], company.get("keywords"))]
-    current_ids = {j["id"] for j in relevant}
+    unique = {}
+    for j in all_jobs:
+        if matches_keywords(j["title"], company.get("keywords")) and is_us_job(j):
+            # setdefault: a connector that repeats a posting still yields it once.
+            unique.setdefault(j["id"], j)
+    relevant = list(unique.values())
+    current_ids = set(unique)
     new_jobs = [j for j in relevant if j["id"] not in seen_ids]
 
     return new_jobs, current_ids, None
 
 
+def _sort_key(job: dict):
+    posted = parse_posted(job.get("posted", ""))
+    # Newest first, undated postings last, then alphabetical.
+    return (posted is None, -(posted.toordinal() if posted else 0), job["title"].lower())
+
+
 def build_email_html(results: dict[str, list[dict]]) -> str:
-    parts = ["<h2>New job postings today</h2>"]
-    for company_name, jobs in results.items():
-        if not jobs:
-            continue
-        parts.append(f"<h3>{html.escape(company_name)}</h3><ul>")
-        for j in jobs:
-            loc = f" — {html.escape(j['location'])}" if j.get("location") else ""
-            parts.append(f'<li><a href="{html.escape(j["url"])}">{html.escape(j["title"])}</a>{loc}</li>')
-        parts.append("</ul>")
+    # Inline styles only: Gmail/Outlook strip <style> blocks.
+    companies = {name: jobs for name, jobs in results.items() if jobs}
+    total = sum(len(jobs) for jobs in companies.values())
+    summary = (
+        f"{total} new posting{'s' if total != 1 else ''} at "
+        f"{len(companies)} compan{'ies' if len(companies) != 1 else 'y'}"
+    )
+    parts = [
+        '<div style="font-family: Arial, Helvetica, sans-serif; font-size: 14px; color: #222; max-width: 680px;">',
+        f'<h2 style="margin: 0 0 4px;">New job postings: {format_date(date.today())}</h2>',
+        f'<p style="margin: 0 0 8px; color: #666;">{summary}</p>',
+    ]
+    for company_name, jobs in companies.items():
+        parts.append(
+            '<h3 style="margin: 24px 0 10px; padding-bottom: 4px; border-bottom: 1px solid #ddd;">'
+            f"{html.escape(company_name)} ({len(jobs)})</h3>"
+        )
+        for j in sorted(jobs, key=_sort_key):
+            meta = [format_locations(j.get("locations", []))]
+            posted = format_posted(j.get("posted", ""))
+            if posted:
+                meta.append(f"Posted {posted}")
+            title = " ".join(j["title"].split())
+            parts.append(
+                '<div style="margin: 0 0 12px;">'
+                f'<a href="{html.escape(j["url"])}" style="font-weight: bold; color: #1a0dab; text-decoration: none;">'
+                f"{html.escape(title)}</a><br>"
+                f'<span style="color: #666; font-size: 13px;">{html.escape(" · ".join(meta))}</span>'
+                "</div>"
+            )
+    parts.append("</div>")
     return "\n".join(parts)
 
 

@@ -32,6 +32,25 @@ BROWSER_HEADERS = {
 # URLs don't follow this shape (e.g. Avature's "/JobDetail/...").
 DEFAULT_JOB_LINK_RE = re.compile(r"/jobs?/[a-z0-9]+(?:-[a-z0-9]+){2,}", re.IGNORECASE)
 
+# Fidelity lists several locations in one element, e.g.
+# "Westlake, TX / Merrimack, NH / Durham, NC + 1 Other Location".
+MULTI_LOCATION_SEP_RE = re.compile(r"\s+/\s+")
+OTHER_LOCATIONS_RE = re.compile(r"\s*\+\s*\d+\s+Other Locations?\s*$", re.IGNORECASE)
+
+
+def _card_details(card, location_selector: str | None, posted_selector: str | None) -> tuple[list[str], str]:
+    """Pull locations and posted date out of the element wrapping one job."""
+    locations = []
+    if card is not None and location_selector:
+        for el in card.select(location_selector):
+            text = OTHER_LOCATIONS_RE.sub("", el.get_text(" ", strip=True))
+            locations.extend(loc for loc in MULTI_LOCATION_SEP_RE.split(text) if loc)
+    posted = ""
+    if card is not None and posted_selector:
+        el = card.select_one(posted_selector)
+        posted = el.get_text(" ", strip=True) if el else ""
+    return locations, posted
+
 
 def fetch_jobs(company_cfg: dict, max_pages: int = 60) -> list[dict]:
     listing_url = company_cfg["listing_url"]
@@ -49,6 +68,12 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 60) -> list[dict]:
         if company_cfg.get("link_pattern")
         else DEFAULT_JOB_LINK_RE
     )
+    # Optional CSS selectors for location/date: "card_selector" matches the
+    # element wrapping one job (table row, card div, ...); the other two are
+    # looked up inside that card.
+    card_selector = company_cfg.get("card_selector")
+    location_selector = company_cfg.get("location_selector")
+    posted_selector = company_cfg.get("posted_selector")
     seen_urls = set()
     jobs = []
     consecutive_empty_pages = 0
@@ -96,6 +121,7 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 60) -> list[dict]:
             time.sleep(0.75)  # small courtesy delay between page requests
 
         soup = BeautifulSoup(resp.text, "html.parser")
+        card_ids = {id(c) for c in soup.select(card_selector)} if card_selector else set()
 
         links_found_on_page = 0
         for a in soup.find_all("a", href=True):
@@ -110,7 +136,9 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 60) -> list[dict]:
             if not title:
                 continue
             seen_urls.add(full_url)
-            jobs.append({"id": full_url, "title": title, "url": full_url, "location": "", "posted": ""})
+            card = next((p for p in a.parents if id(p) in card_ids), None)
+            locations, posted = _card_details(card, location_selector, posted_selector)
+            jobs.append({"id": full_url, "title": title, "url": full_url, "locations": locations, "posted": posted})
 
         # Stop once we hit two genuinely EMPTY pages in a row (no job links
         # at all - a real sign we've run past the last page). A page whose

@@ -14,6 +14,19 @@ import requests
 USER_AGENT = "Mozilla/5.0 (compatible; job-alert-bot/1.0)"
 
 
+def _locations(d: dict) -> list[str]:
+    """Primary location plus any additional_locations, each as
+    "City, State, Country" so the country is always explicit."""
+    locations = []
+    for loc in [d] + (d.get("additional_locations") or []):
+        text = ", ".join(loc[k] for k in ("city", "state", "country") if loc.get(k))
+        if text and text not in locations:
+            locations.append(text)
+    if not locations and d.get("short_location"):
+        locations.append(d["short_location"])
+    return locations
+
+
 def fetch_jobs(company_cfg: dict, max_pages: int = 300) -> list[dict]:
     base_url = company_cfg["base_url"].rstrip("/")
     api_url = f"{base_url}/api/jobs"
@@ -42,7 +55,7 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 300) -> list[dict]:
                     "id": d.get("req_id") or d.get("slug", ""),
                     "title": d.get("title", "Untitled role"),
                     "url": d.get("canonical_url") or d.get("apply_url", ""),
-                    "location": d.get("short_location", ""),
+                    "locations": _locations(d),
                     "posted": d.get("posted_date", ""),
                 }
             )

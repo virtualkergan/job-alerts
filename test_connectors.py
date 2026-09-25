@@ -11,6 +11,7 @@ for the daily run.
 """
 import sys
 
+from jobformat import format_locations, format_posted, is_us_job
 from main import load_companies, CONNECTORS
 
 def main():
@@ -36,9 +37,12 @@ def main():
             print(f"  FAILED: {e}")
             continue
 
-        print(f"  Found {len(jobs)} postings")
+        unique_ids = {j["id"] for j in jobs}
+        us_count = sum(1 for j in jobs if is_us_job(j))
+        print(f"  Found {len(jobs)} postings ({len(unique_ids)} unique ids, {us_count} in the US)")
         for j in jobs[:3]:
             print(f"   - {j['title']}  ->  {j['url']}")
+            print(f"       {format_locations(j['locations'])} | posted: {format_posted(j['posted']) or '-'}")
 
 
 if __name__ == "__main__":
