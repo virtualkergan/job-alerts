@@ -17,7 +17,7 @@ import json
 import os
 import smtplib
 import sys
-from datetime import date
+from datetime import date, timedelta
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from pathlib import Path
@@ -30,6 +30,12 @@ from jobformat import format_date, format_locations, format_posted, is_us_job, p
 ROOT = Path(__file__).parent
 STATE_FILE = ROOT / "state.json"
 COMPANIES_FILE = ROOT / "companies.yaml"
+
+# A posting missing from a fetch stays "seen" this long. Several sites page
+# through unstably sorted results (Aon's relevance sort skips ~1% of jobs per
+# pass, a different ~1% each time), so forgetting after one missed run would
+# re-report long-open postings as new, complete with months-old posted dates.
+SEEN_RETENTION_DAYS = 30
 
 CONNECTORS = {
     "workday": workday.fetch_jobs,
@@ -44,16 +50,31 @@ def load_companies() -> list[dict]:
         return yaml.safe_load(f)
 
 
-def load_state() -> dict:
-    if STATE_FILE.exists():
-        with open(STATE_FILE) as f:
-            return json.load(f)
-    return {}
+def load_state() -> dict[str, dict[str, str]]:
+    """{company name: {posting id: ISO date it was last fetched}}."""
+    if not STATE_FILE.exists():
+        return {}
+    with open(STATE_FILE) as f:
+        state = json.load(f)
+    today = date.today().isoformat()
+    # Older state files stored a plain list of ids; treat those as seen today.
+    return {
+        name: dict.fromkeys(ids, today) if isinstance(ids, list) else ids
+        for name, ids in state.items()
+    }
 
 
 def save_state(state: dict) -> None:
     with open(STATE_FILE, "w") as f:
         json.dump(state, f, indent=2)
+
+
+def update_seen(last_seen: dict[str, str], current_ids: set, today: date) -> dict[str, str]:
+    """Marks current_ids as seen today and forgets ids not seen within
+    SEEN_RETENTION_DAYS. Sorted so state.json diffs stay readable."""
+    cutoff = (today - timedelta(days=SEEN_RETENTION_DAYS)).isoformat()
+    merged = {**last_seen, **dict.fromkeys(current_ids, today.isoformat())}
+    return {i: d for i, d in sorted(merged.items()) if d >= cutoff}
 
 
 def matches_keywords(title: str, keywords: list[str] | None) -> bool:
@@ -182,7 +203,7 @@ def main():
         # baseline but don't report them all as "new" - only postings that
         # show up on later runs count.
         results[name] = [] if is_first_run else new_jobs
-        state[name] = sorted(current_ids)
+        state[name] = update_seen(state.get(name, {}), current_ids, date.today())
         tag = " (seeding baseline)" if is_first_run else ""
         print(f"[{name}] {len(current_ids)} matching postings, {len(new_jobs)} new{tag}")
 
