@@ -3,16 +3,29 @@
 #
 # To add a company: copy a block below, change the values, save.
 # No code changes needed for platforms already supported
-# (workday, attract_api, marsh_phenom, html_scrape).
+# (workday, attract_api, marsh_phenom, html_scrape, oracle_hcm, taleo,
+# ukg, eightfold).
 #
 # platform options:
 #   workday      -> company uses Workday for its career site
+#                    (tenant.wd_number.myworkdayjobs.com/site); optional
+#                    applied_facets copies a filter from the site's URL, and
+#                    country: "United States of America" filters server-side
+#                    (Workday locations don't name the country)
 #   attract_api  -> company's career site has the iCIMS-backed /api/jobs
 #                    JSON endpoint (confirmed: First Citizens Bank, Aon)
 #   html_scrape  -> generic: we read the search-results page's HTML
 #   marsh_phenom -> Marsh McLennan's specific Phenom /widgets endpoint
 #                    (found via live browser inspection; fairly specific
 #                    to this one site's exact payload shape)
+#   oracle_hcm   -> Oracle Recruiting Cloud (*.fa.ocs.oraclecloud.com/
+#                    hcmUI/CandidateExperience/en/sites/{site})
+#   taleo        -> Taleo careersection boards (*.taleo.net)
+#   ukg          -> UKG Pro / UltiPro job boards (recruiting*.ultipro.com)
+#   eightfold    -> Eightfold AI career sites (/api/apply/v2/jobs)
+#
+# allow_empty: true -> zero postings is normal for this company (small
+# employers), so don't treat an empty fetch as a broken connector.
 #
 # Every company reports all US postings. To narrow one down, add e.g.
 #   keywords: ["actuari", "analyst"]
@@ -74,3 +87,153 @@
 - name: "First Citizens Bank"
   platform: "attract_api"
   base_url: "https://jobs.firstcitizens.com"
+
+# ---- Insurance carriers / actuarial employers (added 2026-10-06) ----
+
+- name: "NC Rate Bureau"
+  platform: "html_scrape"
+  listing_url: "https://www.ncrb.org/Careers-and-Working-With-Us"
+  pagination: "none"
+  # Openings are hand-placed links in the "Available Positions" content
+  # block (empty when checked); there's no ATS behind it.
+  link_selector: "#dnn_ctr4288_ContentPane a[href]"
+  link_pattern: "^(?!mailto:)."
+  allow_empty: true
+
+- name: "NC Department of Insurance"
+  platform: "workday"
+  tenant: "nc"
+  wd_number: "wd108"
+  site: "NC_Careers"
+  # State of NC's Workday site, filtered to DOI (linked from ncdoi.gov/careers).
+  applied_facets:
+    hiringCompany: ["4c5533ba0a02100160ecda24adf40000"]
+  allow_empty: true
+
+- name: "Allstate"
+  platform: "workday"
+  tenant: "allstate"
+  wd_number: "wd5"
+  site: "allstate_careers"
+  country: "United States of America"
+
+- name: "State Farm"
+  platform: "attract_api"
+  base_url: "https://jobs.statefarm.com"
+
+- name: "Pinnacle Actuarial Resources"
+  platform: "html_scrape"
+  listing_url: "https://www.pinnacleactuaries.com/careers"
+  pagination: "none"
+  # The careers page links each opening to its Paycom posting.
+  link_pattern: "paycomonline\\.net"
+  allow_empty: true
+
+- name: "Zurich North America"
+  platform: "html_scrape"
+  # Zurich's global SuccessFactors site, searched for US locations.
+  listing_url: "https://www.careers.zurich.com/search/?q=&locationsearch=United+States"
+  pagination: "offset_param"
+  offset_param_name: "startrow"
+  per_page: 25
+  link_pattern: "/job/"
+  card_selector: "tr.data-row"
+  location_selector: "td.colLocation .jobLocation"
+  posted_selector: ".jobDate"
+
+- name: "CNA"
+  platform: "workday"
+  tenant: "cna"
+  wd_number: "wd1"
+  site: "CNA_Careers"
+  country: "United States of America"
+
+- name: "American Family"
+  platform: "html_scrape"
+  listing_url: "https://careers.amfam.com/jobs/"
+  link_pattern: "/jobs/r\\d+/"
+  card_selector: ".card-job"
+  location_selector: ".job-meta li:first-child"
+  # The listing page doesn't show a posted date.
+
+- name: "Acuity"
+  platform: "ukg"
+  board_url: "https://recruiting2.ultipro.com/HER1001ACFIN/JobBoard/ab33798a-3521-417b-8db8-a8e435c475fa/"
+
+# Progressive is not added yet: careers.progressive.com sits behind a
+# Cloudflare challenge that blocks non-browser requests, so its job feed
+# couldn't be identified without a real browser.
+
+- name: "Nationwide"
+  platform: "workday"
+  tenant: "nationwide"
+  wd_number: "wd1"
+  site: "Nationwide_Career"
+
+- name: "Encova"
+  platform: "workday"
+  tenant: "encova"
+  wd_number: "wd1"
+  site: "Search"
+
+- name: "Cincinnati Insurance"
+  platform: "taleo"
+  tenant: "cinfin"
+  section: "ex"
+  portal: "101430233"
+
+- name: "Westfield"
+  platform: "oracle_hcm"
+  host: "fa-exdv-saasfaprod1.fa.ocs.oraclecloud.com"
+  site: "Careers"
+
+- name: "Auto-Owners"
+  platform: "workday"
+  tenant: "aoins"
+  wd_number: "wd5"
+  site: "AutoOwners"
+
+- name: "Erie Insurance"
+  platform: "html_scrape"
+  listing_url: "https://jobs.erieinsurance.com/search/?q="
+  pagination: "offset_param"
+  offset_param_name: "startrow"
+  per_page: 25
+  link_pattern: "/job/"
+  card_selector: "tr.data-row"
+  location_selector: "td.colLocation .jobLocation"
+  posted_selector: ".jobDate"
+
+- name: "Chubb"
+  platform: "oracle_hcm"
+  host: "fa-ewgu-saasfaprod1.fa.ocs.oraclecloud.com"
+  site: "CX_2001"
+
+- name: "Selective"
+  platform: "attract_api"
+  base_url: "https://jobs.selective.com"
+  # selective.com also links a UKG board, but it lists zero jobs.
+
+- name: "Verisk (ISO)"
+  platform: "oracle_hcm"
+  host: "fa-ewmy-saasfaprod1.fa.ocs.oraclecloud.com"
+  site: "CX_1"
+
+- name: "Travelers"
+  platform: "workday"
+  tenant: "travelers"
+  wd_number: "wd5"
+  site: "External"
+  country: "United States of America"
+
+- name: "The Hartford"
+  platform: "workday"
+  tenant: "thehartford"
+  wd_number: "wd5"
+  site: "Careers_External"
+  country: "United States of America"
+
+- name: "Liberty Mutual"
+  platform: "eightfold"
+  base_url: "https://searchjobs.libertymutualgroup.com"
+  domain: "libertymutual.com"

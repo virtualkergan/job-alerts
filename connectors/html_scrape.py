@@ -74,6 +74,10 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 60) -> list[dict]:
     card_selector = company_cfg.get("card_selector")
     location_selector = company_cfg.get("location_selector")
     posted_selector = company_cfg.get("posted_selector")
+    # Optional CSS selector limiting which links are considered at all, for
+    # pages whose job links have no recognizable URL shape (NCRB's openings
+    # are hand-placed links in one CMS content block).
+    link_selector = company_cfg.get("link_selector", "a[href]")
     seen_urls = set()
     jobs = []
     consecutive_empty_pages = 0
@@ -124,8 +128,8 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 60) -> list[dict]:
         card_ids = {id(c) for c in soup.select(card_selector)} if card_selector else set()
 
         links_found_on_page = 0
-        for a in soup.find_all("a", href=True):
-            href = a["href"]
+        for a in soup.select(link_selector):
+            href = a.get("href", "")
             if not job_link_re.search(href):
                 continue
             links_found_on_page += 1

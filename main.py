@@ -24,7 +24,7 @@ from pathlib import Path
 
 import yaml
 
-from connectors import workday, html_scrape, attract_api, marsh_phenom
+from connectors import workday, html_scrape, attract_api, marsh_phenom, oracle_hcm, taleo, ukg, eightfold
 from jobformat import format_date, format_locations, format_posted, is_us_job, parse_posted
 
 ROOT = Path(__file__).parent
@@ -42,6 +42,10 @@ CONNECTORS = {
     "html_scrape": html_scrape.fetch_jobs,
     "attract_api": attract_api.fetch_jobs,
     "marsh_phenom": marsh_phenom.fetch_jobs,
+    "oracle_hcm": oracle_hcm.fetch_jobs,
+    "taleo": taleo.fetch_jobs,
+    "ukg": ukg.fetch_jobs,
+    "eightfold": eightfold.fetch_jobs,
 }
 
 
@@ -97,10 +101,11 @@ def fetch_new_jobs_for_company(company: dict, seen_ids: set) -> tuple[list[dict]
     except Exception as e:  # noqa: BLE001 - one company's failure shouldn't kill the run
         return [], seen_ids, f"fetch failed: {e}"
 
-    if not all_jobs and seen_ids:
+    if not all_jobs and seen_ids and not company.get("allow_empty"):
         # An empty list from a company we've seen before almost always means a
         # broken/blocked scrape, not zero openings; keep old state to avoid
-        # re-alerting every posting once the connector recovers.
+        # re-alerting every posting once the connector recovers. Small
+        # employers that really do drop to zero openings set allow_empty.
         return [], seen_ids, "connector returned no postings - keeping previous state"
 
     unique = {}

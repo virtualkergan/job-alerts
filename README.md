@@ -6,7 +6,7 @@ emails you anything new — with a direct link to apply.
 ## How it works
 
 - `companies.yaml` — the list of companies to watch. Add/remove companies here.
-- `connectors/` — one file per career-site platform (Workday, iCIMS-backed API, Marsh's Phenom site, plain HTML).
+- `connectors/` — one file per career-site platform (Workday, iCIMS-backed API, Marsh's Phenom site, Oracle Recruiting Cloud, Taleo, UKG Pro, Eightfold, plain HTML).
   A company just points at the right one; no code changes needed for
   companies on an already-supported platform.
 - `state.json` — remembers what postings we've already seen, so tomorrow's

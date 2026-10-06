@@ -11,7 +11,7 @@ Location strings seen in the wild (all handled by parse_location):
     "Remote" / ""                                            (unknown)
 """
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 US_STATES = {
     "Alabama": "AL", "Alaska": "AK", "Arizona": "AZ", "Arkansas": "AR",
@@ -31,7 +31,8 @@ US_STATES = {
 _STATE_BY_NAME = {name.lower(): abbr for name, abbr in US_STATES.items()}
 _STATE_ABBRS = set(US_STATES.values())
 _US_COUNTRY_NAMES = {"united states", "united states of america", "usa", "us", "u.s.", "u.s.a."}
-_ZIP_RE = re.compile(r"\s+\d{5}(?:-\d{4})?$")
+# A ZIP either trails the state ("LA 70002") or is its own part ("OH, US, 43215").
+_ZIP_RE = re.compile(r"(?:^|\s+)\d{5}(?:-\d{4})?$")
 
 
 def _state_abbr(text: str) -> str | None:
@@ -93,6 +94,16 @@ def parse_posted(text: str, today: date | None = None) -> date | None:
         text = text[len("posted "):].strip()
     if not text:
         return None
+    today = today or date.today()
+    # Workday: "Today", "Yesterday", "4 Days Ago". "30+ Days Ago" has no
+    # usable date, so it falls through and is shown as-is.
+    if text.lower() == "today":
+        return today
+    if text.lower() == "yesterday":
+        return today - timedelta(days=1)
+    m = re.fullmatch(r"(\d+) days? ago", text, re.IGNORECASE)
+    if m:
+        return today - timedelta(days=int(m.group(1)))
     if re.match(r"\d{4}-\d{2}-\d{2}", text):  # ISO, e.g. 2026-09-25T08:40:00+0000
         return date.fromisoformat(text[:10])
     for fmt in ("%d-%b-%Y", "%b %d, %Y", "%B %d, %Y", "%m/%d/%Y"):
@@ -101,7 +112,6 @@ def parse_posted(text: str, today: date | None = None) -> date | None:
         except ValueError:
             pass
     # Year-less "Sep 25" (Fidelity): assume the most recent such date.
-    today = today or date.today()
     for fmt in ("%b %d", "%B %d"):
         try:
             d = datetime.strptime(f"{text} {today.year}", f"{fmt} %Y").date()
