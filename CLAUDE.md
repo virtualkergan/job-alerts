@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A daily job-alert bot: `main.py` polls company career sites, diffs against `state.json`, and emails new postings via SMTP. The scheduled runner is the Docker Compose stack (`compose.yaml` + `Dockerfile`): supercronic runs inside the container, and `state.json` / `companies.yaml` are bind-mounted from the repo dir, so a locally modified `state.json` is normal, expected churn. The GitHub Actions workflow (`.github/workflows/daily-job-alert.yml`) is manual-only (`workflow_dispatch`); when run, it commits `state.json` back to `main` ("Update job alert state" commits).
+A daily job-alert bot: `main.py` polls company career sites, diffs against `state.json`, and emails new postings via SMTP. The only runner is the Docker Compose stack (`compose.yaml` + `Dockerfile`) on a separate always-on server: supercronic runs inside the container, and `state.json` / `companies.yaml` / `resume.pdf` are bind-mounted from the server's clone of this repo. This checkout is for development; changes reach the server by push, then `git pull` and `docker compose up -d --build` there. `.env`, `resume.pdf` and the live `state.json` exist only on the server. The `state.json` in git is a stale snapshot, and committing it from a dev machine would make the server's `git pull` conflict with its modified copy. There is no GitHub Actions workflow any more; the "Update job alert state" commits in the history are from the retired one.
 
 ## Commands
 
@@ -16,6 +16,7 @@ python summary.py "Aon"           # rank one company's live postings against res
 python test_connectors.py         # live-network smoke test of every connector (prints count + first 3)
 python test_connectors.py "Aon"   # one company, by exact `name` from companies.yaml
 
+# on the server:
 docker compose up -d --build      # scheduled runner; secrets in .env (copy .env.example)
 docker compose exec job-alerts python main.py --dry-run
 ```
@@ -35,15 +36,15 @@ There is no unit-test suite or linter; `test_connectors.py` hits the real sites.
 ## Behaviors that aren't obvious
 
 - **First run per company seeds a baseline**: if `name` isn't in `state.json`, its postings are recorded but not reported as new.
-- **Connector errors are isolated**: a failing company is logged to stderr and its state is left untouched. The run still exits non-zero at the end (even with no new postings, after any email is sent), and the workflow's commit step runs on success or failure (not cancellation), so state is saved and a broken connector shows up as a failed run.
+- **Connector errors are isolated**: a failing company is logged to stderr and its state is left untouched. The run still exits non-zero at the end (even with no new postings, after any email is sent) and after state is saved, so a broken connector shows up as a failed job in the container logs (`docker compose logs`) without losing the other companies' state.
 - **Workday reports `total` only on the first page** (later pages say 0), so the connector keeps the first page's value.
 - **Progressive isn't covered**: careers.progressive.com is behind a Cloudflare challenge that blocks non-browser requests.
 - **Only US postings are kept**: `main.py` drops a posting (from both the email and `state.json`) only when none of its locations is US and at least one is recognizably non-US. Postings with a missing or unparseable location are kept, so a broken `location_selector` shows up as "Location not listed" instead of hiding jobs. Postings are also de-duplicated by `id` there.
 - **Empty results are treated as errors**: if a previously-seen company returns zero postings, `main.py` reports a fetch error and keeps its old state rather than wiping it, unless the company sets `allow_empty: true` (small employers that really do hit zero openings).
-- **The Claude summary is opt-in and never blocks the alert**: with no `resume.pdf` in the repo dir (gitignored, bind-mounted read-only) it is skipped silently, which is also what happens on a GitHub Actions run. If the file exists but the call fails (missing `ANTHROPIC_API_KEY`, API error, refusal), the error is logged as `[summary]`, the email goes out without the section, state is still saved, and the run exits non-zero. `--dry-run` still makes the Claude calls. Claude identifies postings by their number in the prompt, never by id or URL, so it can't link to a posting that wasn't fetched.
+- **The Claude summary is opt-in and never blocks the alert**: with no `resume.pdf` in the repo dir (gitignored, bind-mounted read-only) it is skipped silently. If the file exists but the call fails (missing `ANTHROPIC_API_KEY`, API error, refusal), the error is logged as `[summary]`, the email goes out without the section, state is still saved, and the run exits non-zero. `--dry-run` still makes the Claude calls. Claude identifies postings by their number in the prompt, never by id or URL, so it can't link to a posting that wasn't fetched.
 - **State is saved only after the email sends**, so an SMTP failure retries the same postings next run instead of losing them.
 - **State remembers postings for `SEEN_RETENTION_DAYS` (30) after they were last fetched**: an id missing from a fetch isn't forgotten right away, so it isn't re-reported when it comes back. This matters because fetches are not reliably complete: Aon's `sortBy=relevance` paging skips and duplicates ~1% of jobs per pass (a different ~1% each time), Marsh's order shifts a little between pages, and a truncated `html_scrape` drops ids. Before this window existed, those long-open postings kept reappearing in the email with months-old posted dates. A posting absent for longer than 30 days is reported as new again.
 - `html_scrape` uses the full listing-page URL as the job `id`, and its default link regex requires ≥3 hyphenated words in a `/job(s)/` path to avoid nav links; sites with other URL shapes need `link_pattern`.
 - `marsh_phenom`: `ddoKey` must be `refineSearch`. The page's initial `eagerLoadRefineSearch` ignores `from` and returns the same first page for every offset, which once made the email repeat the same few roles over and over.
 - The Docker schedule is `CRON_SCHEDULE` (default `0 7 * * *`) interpreted in `TZ` (default `America/New_York`), so it tracks DST. The crontab is generated at container start by the `command:` in `compose.yaml` — there's intentionally no committed crontab/shell script, since `core.autocrlf=true` checkouts would add CRLFs.
-- The container runs `main.py` from the image, so code/connector changes need `docker compose up -d --build`; `companies.yaml` changes don't.
+- The container runs `main.py` from the image, so code/connector changes need `docker compose up -d --build` on the server after `git pull`; `companies.yaml` changes only need the pull.

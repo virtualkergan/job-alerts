@@ -252,7 +252,7 @@ def main():
         save_state(state)
 
     if any_errors:
-        sys.exit(1)  # non-zero exit surfaces the failure in GitHub Actions' UI
+        sys.exit(1)  # non-zero exit makes supercronic log the run as failed
 
 
 if __name__ == "__main__":
