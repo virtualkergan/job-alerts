@@ -13,6 +13,9 @@ emails you anything new — with a direct link to apply.
   email only shows what's genuinely new. The Docker stack updates it in place
   in this folder; a manual GitHub Actions run commits it back to the repo.
 - `main.py` — ties it together: fetch → diff against state → email → save state.
+- `summary.py` — optional: asks Claude to pick up to ten of the day's new
+  postings that best fit your resume (entry-level actuarial, underwriting and
+  risk roles) and puts them at the top of the email (see "Top matches" below).
 - `compose.yaml` + `Dockerfile` — runs `main.py` every morning in a Docker
   container with its own built-in cron (see "Running with Docker" below).
 - `.github/workflows/daily-job-alert.yml` — runs `main.py` in GitHub Actions
@@ -100,6 +103,22 @@ docker compose exec job-alerts python main.py             # run once now, for re
   (cron doesn't catch up); the next run still reports everything new since.
 - Avoid also running the GitHub workflow manually: it commits its own
   `state.json`, which will conflict with the local one.
+
+## Top matches (optional)
+
+To get a "Top matches for you" section at the top of each email:
+
+1. Save your resume as `resume.pdf` in this folder (it's gitignored).
+2. Create an API key at https://console.anthropic.com/settings/keys and put it
+   in `.env` as `ANTHROPIC_API_KEY=...`.
+3. `docker compose up -d --build`.
+
+Try it without waiting for the morning run: `python summary.py "Aon"` ranks one
+company's current postings and prints the picks. Each daily run makes two
+Claude API calls, which costs roughly 10 to 25 cents on a busy day (model: `MODEL` in `summary.py`). If
+`resume.pdf` is missing the section is simply left out; if the Claude call
+fails, the email still arrives without it and the run is marked failed in the logs.
+To change what counts as a match, edit `CRITERIA` at the top of `summary.py`.
 
 ## Running locally (optional)
 

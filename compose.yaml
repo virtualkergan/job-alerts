@@ -2,7 +2,7 @@ services:
   job-alerts:
     build: .
     restart: unless-stopped
-    env_file: .env  # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, ALERT_TO (see .env.example)
+    env_file: .env  # SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, ALERT_TO, ANTHROPIC_API_KEY (see .env.example)
     environment:
       TZ: ${TZ:-America/New_York}
       CRON_SCHEDULE: ${CRON_SCHEDULE:-0 7 * * *}  # interpreted in TZ, so it tracks DST
@@ -10,6 +10,7 @@ services:
     volumes:
       - ./state.json:/app/state.json
       - ./companies.yaml:/app/companies.yaml:ro
+      - ./resume.pdf:/app/resume.pdf:ro  # optional; without it the "Top matches" section is skipped
     # The crontab is generated at startup (rather than committed) so the schedule
     # can change via .env without a rebuild. $$ defers expansion to the container.
     command: >-

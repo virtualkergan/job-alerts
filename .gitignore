@@ -7,6 +7,9 @@ venv/
 # Docker secrets (see .env.example)
 .env
 
+# Personal resume used for the "Top matches" section
+resume.pdf
+
 # macOS
 .DS_Store
 

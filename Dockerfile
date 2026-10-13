@@ -24,6 +24,6 @@ RUN case "${TARGETARCH:-amd64}" in \
 WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-COPY main.py jobformat.py test_connectors.py ./
+COPY main.py jobformat.py summary.py test_connectors.py ./
 COPY connectors/ connectors/
-# companies.yaml and state.json are bind-mounted by compose.yaml.
+# companies.yaml, state.json and resume.pdf are bind-mounted by compose.yaml.

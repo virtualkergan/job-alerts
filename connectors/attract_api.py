@@ -57,6 +57,9 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 300) -> list[dict]:
                     "url": d.get("canonical_url") or d.get("apply_url", ""),
                     "locations": _locations(d),
                     "posted": d.get("posted_date", ""),
+                    # The posting pages sit behind a bot check, but the API
+                    # already has the full text; summary.py reads it from here.
+                    "description": d.get("description", ""),
                 }
             )
 

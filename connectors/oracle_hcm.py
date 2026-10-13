@@ -50,6 +50,12 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 200) -> list[dict]:
                     "url": f"https://{host}/hcmUI/CandidateExperience/en/sites/{site}/job/{p['Id']}",
                     "locations": locations,
                     "posted": p.get("PostedDate", ""),
+                    # The posting page is a JavaScript shell; summary.py reads
+                    # the description from this endpoint instead.
+                    "description_url": (
+                        f"https://{host}/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails"
+                        f'?onlyData=true&expand=all&finder=ById;Id="{p["Id"]}",siteNumber={site}'
+                    ),
                 }
             )
 

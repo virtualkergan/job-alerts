@@ -24,6 +24,7 @@ from pathlib import Path
 
 import yaml
 
+import summary
 from connectors import workday, html_scrape, attract_api, marsh_phenom, oracle_hcm, taleo, ukg, eightfold
 from jobformat import format_date, format_locations, format_posted, is_us_job, parse_posted
 
@@ -126,7 +127,25 @@ def _sort_key(job: dict):
     return (posted is None, -(posted.toordinal() if posted else 0), job["title"].lower())
 
 
-def build_email_html(results: dict[str, list[dict]]) -> str:
+def _job_html(job: dict, prefix: str = "", company: str = "", note: str = "") -> str:
+    meta = [company] if company else []
+    meta.append(format_locations(job.get("locations", [])))
+    posted = format_posted(job.get("posted", ""))
+    if posted:
+        meta.append(f"Posted {posted}")
+    title = " ".join(job["title"].split())
+    note_html = f'<br><span style="font-size: 13px;">{html.escape(note)}</span>' if note else ""
+    return (
+        '<div style="margin: 0 0 12px;">'
+        f'{html.escape(prefix)}<a href="{html.escape(job["url"])}" style="font-weight: bold; color: #1a0dab; text-decoration: none;">'
+        f"{html.escape(title)}</a><br>"
+        f'<span style="color: #666; font-size: 13px;">{html.escape(" · ".join(meta))}</span>'
+        f"{note_html}"
+        "</div>"
+    )
+
+
+def build_email_html(results: dict[str, list[dict]], top_jobs: list[dict] = ()) -> str:
     # Inline styles only: Gmail/Outlook strip <style> blocks.
     companies = {name: jobs for name, jobs in results.items() if jobs}
     total = sum(len(jobs) for jobs in companies.values())
@@ -139,24 +158,20 @@ def build_email_html(results: dict[str, list[dict]]) -> str:
         f'<h2 style="margin: 0 0 4px;">New job postings: {format_date(date.today())}</h2>',
         f'<p style="margin: 0 0 8px; color: #666;">{summary}</p>',
     ]
+    if top_jobs:
+        parts.append(
+            '<h3 style="margin: 24px 0 10px; padding-bottom: 4px; border-bottom: 1px solid #ddd;">'
+            "Top matches for you</h3>"
+        )
+        for rank, pick in enumerate(top_jobs, 1):
+            parts.append(_job_html(pick["job"], prefix=f"{rank}. ", company=pick["company"], note=pick["reason"]))
     for company_name, jobs in companies.items():
         parts.append(
             '<h3 style="margin: 24px 0 10px; padding-bottom: 4px; border-bottom: 1px solid #ddd;">'
             f"{html.escape(company_name)} ({len(jobs)})</h3>"
         )
         for j in sorted(jobs, key=_sort_key):
-            meta = [format_locations(j.get("locations", []))]
-            posted = format_posted(j.get("posted", ""))
-            if posted:
-                meta.append(f"Posted {posted}")
-            title = " ".join(j["title"].split())
-            parts.append(
-                '<div style="margin: 0 0 12px;">'
-                f'<a href="{html.escape(j["url"])}" style="font-weight: bold; color: #1a0dab; text-decoration: none;">'
-                f"{html.escape(title)}</a><br>"
-                f'<span style="color: #666; font-size: 13px;">{html.escape(" · ".join(meta))}</span>'
-                "</div>"
-            )
+            parts.append(_job_html(j))
     parts.append("</div>")
     return "\n".join(parts)
 
@@ -216,7 +231,13 @@ def main():
     if total_new == 0:
         print("No new postings today.")
     else:
-        html_body = build_email_html(results)
+        try:
+            top_jobs = summary.pick_top_jobs(results)
+        except Exception as e:  # noqa: BLE001 - the summary is a bonus; never let it block the alert
+            print(f"[summary] failed: {e}", file=sys.stderr)
+            any_errors = True
+            top_jobs = []
+        html_body = build_email_html(results, top_jobs)
 
         if args.dry_run:
             print("\n--- DRY RUN: would send this email ---\n")
