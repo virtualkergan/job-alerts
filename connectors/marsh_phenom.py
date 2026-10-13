@@ -102,7 +102,9 @@ def fetch_jobs(company_cfg: dict, max_pages: int = 30) -> list[dict]:
                 {
                     "id": job_id,
                     "title": p.get("title", "Untitled role"),
-                    "url": p.get("applyUrl", ""),
+                    # applyUrl is the Workday posting plus "/apply", which opens
+                    # the application; without it the link shows the description.
+                    "url": p.get("applyUrl", "").removesuffix("/apply"),
                     "locations": [loc for loc in locations if loc],
                     "posted": p.get("postedDate", ""),
                 }

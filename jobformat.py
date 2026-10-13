@@ -7,7 +7,7 @@ Location strings seen in the wild (all handled by parse_location):
     "Chicago, Illinois, United States"                       (Aon, WTW)
     "3300 West Esplanade Ave, Metairie, LA 70002, United States of America"  (Marsh)
     "Durham, NC"                                             (Fidelity)
-    "Tokyo, Japan" / "Toronto, Ontario, Canada"              (non-US)
+    "Tokyo, Japan" / "Toronto, Ontario, Canada" / "Hong Kong" (non-US)
     "Remote" / ""                                            (unknown)
 """
 import re
@@ -31,6 +31,38 @@ US_STATES = {
 _STATE_BY_NAME = {name.lower(): abbr for name, abbr in US_STATES.items()}
 _STATE_ABBRS = set(US_STATES.values())
 _US_COUNTRY_NAMES = {"united states", "united states of america", "usa", "us", "u.s.", "u.s.a."}
+# For locations that are only a country ("Hong Kong", which is how Chubb's
+# Oracle site lists most non-US roles). Longer locations don't need this:
+# anything with a comma that isn't US is already treated as non-US.
+_NON_US_COUNTRIES = {
+    name.lower() for name in (
+        "Afghanistan", "Albania", "Algeria", "Andorra", "Angola", "Argentina", "Armenia",
+        "Aruba", "Australia", "Austria", "Azerbaijan", "Bahamas", "Bahrain", "Bangladesh",
+        "Barbados", "Belarus", "Belgium", "Belize", "Benin", "Bermuda", "Bhutan", "Bolivia",
+        "Bosnia and Herzegovina", "Botswana", "Brazil", "Brunei", "Bulgaria", "Burkina Faso",
+        "Burundi", "Cambodia", "Cameroon", "Canada", "Cayman Islands", "Chad", "Chile",
+        "China", "Colombia", "Costa Rica", "Cote d'Ivoire", "Croatia", "Cuba", "Curacao",
+        "Cyprus", "Czech Republic", "Czechia", "Denmark", "Dominican Republic", "Ecuador",
+        "Egypt", "El Salvador", "England", "Estonia", "Ethiopia", "Fiji", "Finland",
+        "France", "Gabon", "Germany", "Ghana", "Gibraltar", "Greece", "Guatemala",
+        "Guernsey", "Guyana", "Haiti", "Honduras", "Hong Kong", "Hong Kong SAR", "Hungary",
+        "Iceland", "India", "Indonesia", "Iran", "Iraq", "Ireland", "Isle of Man", "Israel",
+        "Italy", "Jamaica", "Japan", "Jersey", "Jordan", "Kazakhstan", "Kenya", "Korea",
+        "Kuwait", "Kyrgyzstan", "Laos", "Latvia", "Lebanon", "Libya", "Liechtenstein",
+        "Lithuania", "Luxembourg", "Macau", "Macao", "Madagascar", "Malawi", "Malaysia",
+        "Maldives", "Mali", "Malta", "Mauritius", "Mexico", "Moldova", "Monaco", "Mongolia",
+        "Montenegro", "Morocco", "Mozambique", "Myanmar", "Namibia", "Nepal", "Netherlands",
+        "New Zealand", "Nicaragua", "Niger", "Nigeria", "North Macedonia", "Northern Ireland",
+        "Norway", "Oman", "Pakistan", "Panama", "Papua New Guinea", "Paraguay", "Peru",
+        "Philippines", "Poland", "Portugal", "Qatar", "Romania", "Russia",
+        "Russian Federation", "Rwanda", "Saudi Arabia", "Scotland", "Senegal", "Serbia",
+        "Singapore", "Slovakia", "Slovenia", "South Africa", "South Korea", "Spain",
+        "Sri Lanka", "Sweden", "Switzerland", "Taiwan", "Tanzania", "Thailand",
+        "Trinidad and Tobago", "Tunisia", "Turkey", "Turkiye", "Türkiye", "Uganda",
+        "Ukraine", "United Arab Emirates", "UAE", "United Kingdom", "UK", "Uruguay",
+        "Uzbekistan", "Venezuela", "Viet Nam", "Vietnam", "Wales", "Zambia", "Zimbabwe",
+    )
+}
 # A ZIP either trails the state ("LA 70002") or is its own part ("OH, US, 43215").
 _ZIP_RE = re.compile(r"(?:^|\s+)\d{5}(?:-\d{4})?$")
 
@@ -64,6 +96,8 @@ def parse_location(text: str) -> tuple[str, str | None]:
     if len(parts) >= 2:
         # "City, Country" or "City, Region, Country" with a non-US country.
         return f"{parts[0]}, {parts[-1]}", "non_us"
+    if parts[0].lower() in _NON_US_COUNTRIES:
+        return parts[0], "non_us"
     return parts[0], None  # "Remote", "Multiple Locations", ...
 
 
