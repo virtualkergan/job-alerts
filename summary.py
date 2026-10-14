@@ -64,7 +64,7 @@ You only have titles at this stage; the full descriptions of your picks are read
 FINAL_PROMPT = """\
 Below are the shortlisted postings with their descriptions. Where a description could not be retrieved, judge the posting on its title and company alone and be more cautious about it.
 
-Return up to {limit} postings that qualify, best fit first. Return fewer when fewer qualify, and an empty list when none do, instead of filling the list with poor fits. For each, give a one-sentence reason addressed to the candidate ("you"), naming the specific thing in their background that matches what the posting asks for.
+Return up to {limit} postings that qualify, best fit first. Return fewer when fewer qualify, and an empty list when none do, instead of filling the list with poor fits. For each, give a one-sentence reason addressed to the candidate ("you"), naming the specific thing in their background that matches what the posting asks for. Each reason is shown on its own under that posting, without these numbers, so it must not refer to other postings or to posting numbers.
 
 {postings}"""
 
