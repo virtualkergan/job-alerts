@@ -5,6 +5,11 @@ day and emails you only the postings that are **new since yesterday**, each
 linked to its description page. Optionally, Claude reads your resume and puts
 the ten best-fitting new roles at the top of the email.
 
+<p align="center">
+  <img src="docs/email-example.png" width="700"
+       alt="Example daily email: a 'Top matches for you' section with two picks and a one-line reason each, followed by new postings grouped by company">
+</p>
+
 I built it to follow entry-level actuarial and underwriting openings at
 insurance carriers, and it ships configured for 27 of them, but it works for
 any company whose career site runs on a supported platform.
